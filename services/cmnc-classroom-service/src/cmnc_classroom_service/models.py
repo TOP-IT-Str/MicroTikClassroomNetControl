@@ -2,8 +2,10 @@ from datetime import datetime
 
 from sqlalchemy import (
     Boolean,
+    CheckConstraint,
     DateTime,
     ForeignKey,
+    Index,
     Integer,
     String,
     Text,
@@ -162,3 +164,58 @@ class Device(Base):
     )
 
     classroom: Mapped[Classroom] = relationship(back_populates="devices")
+
+
+class DeviceStatisticsState(Base):
+    __tablename__ = "device_statistics_state"
+
+    __table_args__ = (
+        CheckConstraint(
+            "wan_state IN ('allowed', 'blocked', 'protected')",
+            name="ck_device_statistics_state_wan_state",
+        ),
+    )
+
+    device_id: Mapped[int] = mapped_column(
+        ForeignKey("devices.id", ondelete="CASCADE"),
+        primary_key=True,
+    )
+    online: Mapped[bool] = mapped_column(
+        Boolean,
+        nullable=False,
+        server_default=text("false"),
+        default=False,
+    )
+    wan_state: Mapped[str] = mapped_column(String(16), nullable=False)
+    observed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=func.now(),
+        onupdate=func.now(),
+    )
+
+
+class DeviceStatisticsEvent(Base):
+    __tablename__ = "device_statistics_events"
+
+    __table_args__ = (
+        CheckConstraint(
+            "wan_state IN ('allowed', 'blocked', 'protected')",
+            name="ck_device_statistics_events_wan_state",
+        ),
+        Index(
+            "ix_device_statistics_events_device_occurred",
+            "device_id",
+            "occurred_at",
+        ),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    device_id: Mapped[int] = mapped_column(
+        ForeignKey("devices.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    occurred_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    online: Mapped[bool] = mapped_column(Boolean, nullable=False)
+    wan_state: Mapped[str] = mapped_column(String(16), nullable=False)

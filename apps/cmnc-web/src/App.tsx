@@ -60,6 +60,9 @@ import {
     parseOptionalPositiveInteger,
 } from "./utils/devices";
 import { parseOptionalInteger, parseRequiredString } from "./utils/forms";
+import {
+    ClassroomStatisticsButton
+} from "./components/ClassroomStatisticsModal/ClassroomStatisticsModal.tsx";
 
 type AppPage = "dashboard" | "account" | "access" | "maintenance" | "routers";
 
@@ -847,6 +850,12 @@ export function App() {
                                                 routerNames,
                                             )}
                                         </div>
+                                        <br/>
+                                        <ClassroomStatisticsButton
+                                            key={dashboard.classroom.id}
+                                            classroomId={dashboard.classroom.id}
+                                            classroomName={dashboard.classroom.name}
+                                        />
                                     </div>
 
                                     <div className="classroom-actions">

@@ -1,0 +1,249 @@
+.classroom-statistics-button {
+    margin-left: auto;
+}
+
+.statistics-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 1200;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+    background: rgba(2, 6, 23, 0.82);
+}
+
+.statistics-modal {
+    width: min(1400px, 100%);
+    max-height: calc(100vh - 48px);
+    overflow: auto;
+    padding: 20px;
+    border: 1px solid #334155;
+    border-radius: 16px;
+    background: #111827;
+    box-shadow: 0 24px 70px rgba(0, 0, 0, 0.55);
+}
+
+.statistics-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 18px;
+    margin-bottom: 14px;
+}
+
+.statistics-header h3 {
+    margin: 0 0 5px;
+}
+
+.statistics-header-actions {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.statistics-close-button {
+    width: 36px;
+    height: 36px;
+    border: 0;
+    border-radius: 8px;
+    background: #1f2937;
+    color: #e5e7eb;
+    cursor: pointer;
+    font-size: 24px;
+    line-height: 1;
+}
+
+.statistics-legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px 18px;
+    margin-bottom: 16px;
+    color: #cbd5e1;
+    font-size: 13px;
+}
+
+.statistics-legend-item {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+}
+
+.statistics-legend-item span {
+    width: 26px;
+    height: 9px;
+    border: 1px solid #475569;
+    border-radius: 999px;
+}
+
+.statistics-legend-online {
+    background: #f8fafc;
+}
+
+.statistics-legend-wan-blocked {
+    background: #eab308;
+}
+
+.statistics-legend-wan-allowed {
+    background: #22c55e;
+}
+
+.statistics-legend-wan-protected {
+    background: #3b82f6;
+}
+
+.statistics-empty {
+    padding: 28px 0 12px;
+    text-align: center;
+}
+
+.statistics-scroll {
+    overflow-x: auto;
+    border: 1px solid #334155;
+    border-radius: 12px;
+    background: #0b1120;
+}
+
+.statistics-chart {
+    min-width: 980px;
+}
+
+.statistics-time-row,
+.statistics-device-row {
+    display: grid;
+    grid-template-columns: 210px minmax(720px, 1fr);
+}
+
+.statistics-time-row {
+    position: sticky;
+    top: 0;
+    z-index: 4;
+    background: #0f172a;
+}
+
+.statistics-device-heading {
+    display: flex;
+    align-items: center;
+    padding: 10px 14px;
+    border-right: 1px solid #334155;
+    color: #94a3b8;
+    font-size: 13px;
+    font-weight: 600;
+}
+
+.statistics-time-axis {
+    position: relative;
+    min-height: 48px;
+    margin-right: 20px;
+}
+
+.statistics-tick {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    width: 1px;
+    background: #334155;
+}
+
+.statistics-tick span {
+    position: absolute;
+    top: 7px;
+    left: 0;
+    padding: 2px 4px;
+    color: #94a3b8;
+    background: #0f172a;
+    font-size: 11px;
+    white-space: nowrap;
+    transform: translateX(-50%);
+}
+
+.statistics-tick:first-child span {
+    transform: none;
+}
+
+.statistics-tick:last-child span {
+    transform: translateX(-100%);
+}
+
+.statistics-device-row:last-child {
+    border-bottom: 0;
+}
+
+.statistics-device-info {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    gap: 4px;
+    min-width: 0;
+    padding: 10px 14px;
+}
+
+.statistics-device-info strong {
+    overflow: hidden;
+    color: #e5e7eb;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.statistics-device-info span {
+    color: #94a3b8;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: 12px;
+}
+
+.statistics-lanes {
+    display: grid;
+    align-content: center;
+    padding: 10px 20px 10px 0;
+}
+
+.statistics-lane {
+    position: relative;
+    height: 19px;
+    overflow: hidden;
+    border: 1px solid #334155;
+    background: #020617;
+}
+
+.statistics-segment {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    min-width: 1px;
+}
+
+.statistics-segment-online {
+    background: #f8fafc;
+}
+
+.statistics-segment-allowed {
+    background: #22c55e;
+}
+
+.statistics-segment-blocked {
+    background: #eab308;
+}
+
+.statistics-segment-protected {
+    background: #3b82f6;
+}
+
+@media (max-width: 720px) {
+    .statistics-backdrop {
+        padding: 8px;
+    }
+
+    .statistics-modal {
+        max-height: calc(100vh - 16px);
+        padding: 14px;
+    }
+
+    .statistics-header {
+        flex-direction: column;
+    }
+
+    .statistics-header-actions {
+        width: 100%;
+        justify-content: flex-end;
+    }
+}

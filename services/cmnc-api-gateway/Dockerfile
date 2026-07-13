@@ -19,4 +19,4 @@ RUN uv sync --package cmnc-api-gateway --no-dev
 
 EXPOSE 8000
 
-CMD ["uvicorn", "cmnc_api_gateway.main:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["uvicorn", "cmnc_api_gateway.statistics_main:app", "--host", "0.0.0.0", "--port", "8000"]

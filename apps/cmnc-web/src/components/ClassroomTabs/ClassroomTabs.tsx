@@ -1,5 +1,7 @@
 import type { Classroom } from "../../api";
+import { ClassroomStatisticsButton } from "../ClassroomStatisticsModal/ClassroomStatisticsModal";
 import "./ClassroomTabs.css";
+
 
 type ClassroomTabsProps = {
     classrooms: Classroom[];
@@ -7,8 +9,12 @@ type ClassroomTabsProps = {
     onSelect: (classroomId: number) => void;
 };
 
+
 export function ClassroomTabs(props: ClassroomTabsProps) {
     const { classrooms, selectedClassroomId, onSelect } = props;
+    const selectedClassroom = classrooms.find(
+        (classroom) => classroom.id === selectedClassroomId,
+    );
 
     return (
         <section className="classroom-tabs">
