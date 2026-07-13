@@ -42,6 +42,32 @@
     gap: 10px;
 }
 
+.statistics-range-control {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    color: #94a3b8;
+    font-size: 13px;
+    white-space: nowrap;
+}
+
+.statistics-range-control select {
+    min-width: 118px;
+    height: 36px;
+    padding: 0 32px 0 10px;
+    border: 1px solid #475569;
+    border-radius: 8px;
+    background: #1f2937;
+    color: #e5e7eb;
+    cursor: pointer;
+}
+
+.statistics-range-control select:focus {
+    border-color: #64748b;
+    outline: 2px solid rgba(59, 130, 246, 0.35);
+    outline-offset: 1px;
+}
+
 .statistics-close-button {
     width: 36px;
     height: 36px;
@@ -244,6 +270,11 @@
 
     .statistics-header-actions {
         width: 100%;
+        flex-wrap: wrap;
         justify-content: flex-end;
+    }
+
+    .statistics-range-control {
+        margin-right: auto;
     }
 }

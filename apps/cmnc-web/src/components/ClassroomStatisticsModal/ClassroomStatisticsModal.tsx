@@ -12,6 +12,41 @@ const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "";
 const TICK_COUNT = 7;
 
 
+type StatisticsRangeMinutes = 10080 | 1440 | 240 | 40;
+
+
+type StatisticsRangeOption = {
+    value: StatisticsRangeMinutes;
+    label: string;
+    description: string;
+};
+
+
+const DEFAULT_STATISTICS_RANGE_MINUTES: StatisticsRangeMinutes = 1440;
+const STATISTICS_RANGE_OPTIONS: StatisticsRangeOption[] = [
+    {
+        value: 10080,
+        label: "Неделя",
+        description: "последнюю неделю",
+    },
+    {
+        value: 1440,
+        label: "24 часа",
+        description: "последние 24 часа",
+    },
+    {
+        value: 240,
+        label: "4 часа",
+        description: "последние 4 часа",
+    },
+    {
+        value: 40,
+        label: "40 минут",
+        description: "последние 40 минут",
+    },
+];
+
+
 type StatisticsSegment = {
     start_at: string;
     end_at: string;
@@ -75,17 +110,24 @@ type ClassroomStatisticsModalProps = ClassroomStatisticsButtonProps & {
 
 function ClassroomStatisticsModal(props: ClassroomStatisticsModalProps) {
     const { classroomId, classroomName, onClose } = props;
+    const [rangeMinutes, setRangeMinutes] = useState<StatisticsRangeMinutes>(
+        DEFAULT_STATISTICS_RANGE_MINUTES,
+    );
     const [statistics, setStatistics] = useState<ClassroomStatisticsResponse | null>(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
-    const requestInFlightRef = useRef(false);
+    const requestAbortControllerRef = useRef<AbortController | null>(null);
+
+    const selectedRange = useMemo(() => {
+        return STATISTICS_RANGE_OPTIONS.find((option) => option.value === rangeMinutes)
+            ?? STATISTICS_RANGE_OPTIONS[1];
+    }, [rangeMinutes]);
 
     const loadStatistics = useCallback(async (showLoader: boolean) => {
-        if (requestInFlightRef.current) {
-            return;
-        }
+        requestAbortControllerRef.current?.abort();
 
-        requestInFlightRef.current = true;
+        const abortController = new AbortController();
+        requestAbortControllerRef.current = abortController;
 
         if (showLoader) {
             setLoading(true);
@@ -93,20 +135,34 @@ function ClassroomStatisticsModal(props: ClassroomStatisticsModalProps) {
         }
 
         try {
-            setStatistics(await requestStatistics(classroomId));
-            setError(null);
+            const data = await requestStatistics(
+                classroomId,
+                rangeMinutes,
+                abortController.signal,
+            );
+
+            if (!abortController.signal.aborted) {
+                setStatistics(data);
+                setError(null);
+            }
         } catch (err) {
+            if (abortController.signal.aborted) {
+                return;
+            }
+
             if (showLoader) {
                 setError(extractErrorDetail(err));
             }
         } finally {
-            requestInFlightRef.current = false;
+            if (requestAbortControllerRef.current === abortController) {
+                requestAbortControllerRef.current = null;
 
-            if (showLoader) {
-                setLoading(false);
+                if (showLoader) {
+                    setLoading(false);
+                }
             }
         }
-    }, [classroomId]);
+    }, [classroomId, rangeMinutes]);
 
     useEffect(() => {
         void loadStatistics(true);
@@ -117,7 +173,10 @@ function ClassroomStatisticsModal(props: ClassroomStatisticsModalProps) {
             }
         }, REFRESH_INTERVALS.statistics);
 
-        return () => window.clearInterval(timerId);
+        return () => {
+            window.clearInterval(timerId);
+            requestAbortControllerRef.current?.abort();
+        };
     }, [loadStatistics]);
 
     useEffect(() => {
@@ -144,10 +203,10 @@ function ClassroomStatisticsModal(props: ClassroomStatisticsModalProps) {
             const timestamp = start + duration * (index / (TICK_COUNT - 1));
             return {
                 position: index / (TICK_COUNT - 1) * 100,
-                label: formatTick(timestamp),
+                label: formatTick(timestamp, rangeMinutes),
             };
         });
-    }, [statistics]);
+    }, [rangeMinutes, statistics]);
 
     return (
         <div className="statistics-backdrop" onMouseDown={onClose}>
@@ -161,10 +220,30 @@ function ClassroomStatisticsModal(props: ClassroomStatisticsModalProps) {
                 <div className="statistics-header">
                     <div>
                         <h3>Статистика — {classroomName}</h3>
-                        <div className="muted">Доступность устройств и состояние WAN за последние 24 часа</div>
+                        <div className="muted">
+                            Доступность устройств и состояние WAN за {selectedRange.description}
+                        </div>
                     </div>
 
                     <div className="statistics-header-actions">
+                        <label className="statistics-range-control">
+                            <span>Период</span>
+                            <select
+                                value={rangeMinutes}
+                                onChange={(event) =>
+                                    setRangeMinutes(
+                                        Number(event.target.value) as StatisticsRangeMinutes,
+                                    )
+                                }
+                            >
+                                {STATISTICS_RANGE_OPTIONS.map((option) => (
+                                    <option key={option.value} value={option.value}>
+                                        {option.label}
+                                    </option>
+                                ))}
+                            </select>
+                        </label>
+
                         <button
                             className="secondary-button"
                             disabled={loading}
@@ -352,7 +431,14 @@ function formatState(state: string): string {
 }
 
 
-function formatTick(timestamp: number): string {
+function formatTick(timestamp: number, rangeMinutes: StatisticsRangeMinutes): string {
+    if (rangeMinutes <= 240) {
+        return new Date(timestamp).toLocaleTimeString([], {
+            hour: "2-digit",
+            minute: "2-digit",
+        });
+    }
+
     return new Date(timestamp).toLocaleString([], {
         day: "2-digit",
         month: "2-digit",
@@ -367,14 +453,25 @@ function formatDateTime(value: string): string {
 }
 
 
-async function requestStatistics(classroomId: number): Promise<ClassroomStatisticsResponse> {
+async function requestStatistics(
+    classroomId: number,
+    rangeMinutes: StatisticsRangeMinutes,
+    signal: AbortSignal,
+): Promise<ClassroomStatisticsResponse> {
     const token = getAccessToken();
-    const response = await fetch(`${API_BASE_URL}/api/classrooms/${classroomId}/statistics`, {
-        headers: {
-            "Content-Type": "application/json",
-            ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        },
+    const searchParams = new URLSearchParams({
+        range_minutes: rangeMinutes.toString(),
     });
+    const response = await fetch(
+        `${API_BASE_URL}/api/classrooms/${classroomId}/statistics?${searchParams.toString()}`,
+        {
+            signal,
+            headers: {
+                "Content-Type": "application/json",
+                ...(token ? { Authorization: `Bearer ${token}` } : {}),
+            },
+        },
+    );
 
     if (response.status === 401) {
         clearAccessToken();

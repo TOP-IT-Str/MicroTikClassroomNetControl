@@ -5,7 +5,7 @@ from datetime import datetime, timedelta, timezone
 from ipaddress import ip_address
 from typing import Callable, Iterable
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -19,7 +19,15 @@ from cmnc_classroom_service.models import (
 )
 
 
-STATISTICS_HOURS = 24
+DEFAULT_STATISTICS_RANGE_MINUTES = 24 * 60
+ALLOWED_STATISTICS_RANGE_MINUTES = frozenset(
+    {
+        40,
+        4 * 60,
+        24 * 60,
+        7 * 24 * 60,
+    }
+)
 
 router = APIRouter()
 
@@ -106,15 +114,23 @@ async def record_device_statistics_state(
 )
 async def get_classroom_statistics(
     classroom_id: int,
+    range_minutes: int = Query(default=DEFAULT_STATISTICS_RANGE_MINUTES),
     session: AsyncSession = Depends(get_session),
 ) -> ClassroomStatisticsResponse:
+    if range_minutes not in ALLOWED_STATISTICS_RANGE_MINUTES:
+        allowed = ", ".join(str(value) for value in sorted(ALLOWED_STATISTICS_RANGE_MINUTES))
+        raise HTTPException(
+            status_code=422,
+            detail=f"range_minutes must be one of: {allowed}",
+        )
+
     classroom = await session.get(Classroom, classroom_id)
 
     if classroom is None or not classroom.is_active:
         raise HTTPException(status_code=404, detail="Classroom not found")
 
     end_at = datetime.now(timezone.utc)
-    start_at = end_at - timedelta(hours=STATISTICS_HOURS)
+    start_at = end_at - timedelta(minutes=range_minutes)
 
     result = await session.execute(
         select(Device)
