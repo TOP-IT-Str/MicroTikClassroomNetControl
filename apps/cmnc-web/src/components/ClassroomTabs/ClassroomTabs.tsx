@@ -1,5 +1,4 @@
 import type { Classroom } from "../../api";
-import { ClassroomStatisticsButton } from "../ClassroomStatisticsModal/ClassroomStatisticsModal";
 import "./ClassroomTabs.css";
 
 
@@ -12,9 +11,6 @@ type ClassroomTabsProps = {
 
 export function ClassroomTabs(props: ClassroomTabsProps) {
     const { classrooms, selectedClassroomId, onSelect } = props;
-    const selectedClassroom = classrooms.find(
-        (classroom) => classroom.id === selectedClassroomId,
-    );
 
     return (
         <section className="classroom-tabs">
