@@ -71,6 +71,9 @@ type ClassroomStatisticsResponse = {
 };
 
 
+type StatisticsLoadMode = "initial" | "interactive" | "background";
+
+
 type ClassroomStatisticsButtonProps = {
     classroomId: number;
     classroomName: string;
@@ -114,23 +117,34 @@ function ClassroomStatisticsModal(props: ClassroomStatisticsModalProps) {
         DEFAULT_STATISTICS_RANGE_MINUTES,
     );
     const [statistics, setStatistics] = useState<ClassroomStatisticsResponse | null>(null);
+    const [displayedRangeMinutes, setDisplayedRangeMinutes] =
+        useState<StatisticsRangeMinutes>(DEFAULT_STATISTICS_RANGE_MINUTES);
     const [loading, setLoading] = useState(true);
+    const [refreshing, setRefreshing] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const requestAbortControllerRef = useRef<AbortController | null>(null);
+    const hasLoadedStatisticsRef = useRef(false);
 
     const selectedRange = useMemo(() => {
         return STATISTICS_RANGE_OPTIONS.find((option) => option.value === rangeMinutes)
             ?? STATISTICS_RANGE_OPTIONS[1];
     }, [rangeMinutes]);
 
-    const loadStatistics = useCallback(async (showLoader: boolean) => {
+    const loadStatistics = useCallback(async (mode: StatisticsLoadMode) => {
+        if (mode === "background" && requestAbortControllerRef.current !== null) {
+            return;
+        }
+
         requestAbortControllerRef.current?.abort();
 
         const abortController = new AbortController();
         requestAbortControllerRef.current = abortController;
 
-        if (showLoader) {
+        if (mode === "initial") {
             setLoading(true);
+            setError(null);
+        } else if (mode === "interactive") {
+            setRefreshing(true);
             setError(null);
         }
 
@@ -142,7 +156,9 @@ function ClassroomStatisticsModal(props: ClassroomStatisticsModalProps) {
             );
 
             if (!abortController.signal.aborted) {
-                setStatistics(data);
+                setStatistics((current) => mergeStatisticsGraphs(current, data));
+                setDisplayedRangeMinutes(rangeMinutes);
+                hasLoadedStatisticsRef.current = true;
                 setError(null);
             }
         } catch (err) {
@@ -150,26 +166,31 @@ function ClassroomStatisticsModal(props: ClassroomStatisticsModalProps) {
                 return;
             }
 
-            if (showLoader) {
+            if (mode !== "background") {
                 setError(extractErrorDetail(err));
             }
         } finally {
             if (requestAbortControllerRef.current === abortController) {
                 requestAbortControllerRef.current = null;
 
-                if (showLoader) {
+                if (mode === "initial") {
                     setLoading(false);
+                } else if (mode === "interactive") {
+                    setRefreshing(false);
                 }
             }
         }
     }, [classroomId, rangeMinutes]);
 
     useEffect(() => {
-        void loadStatistics(true);
+        const mode: StatisticsLoadMode = hasLoadedStatisticsRef.current
+            ? "interactive"
+            : "initial";
+        void loadStatistics(mode);
 
         const timerId = window.setInterval(() => {
             if (document.visibilityState === "visible") {
-                void loadStatistics(false);
+                void loadStatistics("background");
             }
         }, REFRESH_INTERVALS.statistics);
 
@@ -203,10 +224,10 @@ function ClassroomStatisticsModal(props: ClassroomStatisticsModalProps) {
             const timestamp = start + duration * (index / (TICK_COUNT - 1));
             return {
                 position: index / (TICK_COUNT - 1) * 100,
-                label: formatTick(timestamp, rangeMinutes),
+                label: formatTick(timestamp, displayedRangeMinutes),
             };
         });
-    }, [rangeMinutes, statistics]);
+    }, [displayedRangeMinutes, statistics]);
 
     return (
         <div className="statistics-backdrop" onMouseDown={onClose}>
@@ -246,10 +267,10 @@ function ClassroomStatisticsModal(props: ClassroomStatisticsModalProps) {
 
                         <button
                             className="secondary-button"
-                            disabled={loading}
-                            onClick={() => void loadStatistics(true)}
+                            disabled={loading || refreshing}
+                            onClick={() => void loadStatistics("interactive")}
                         >
-                            Обновить
+                            {refreshing ? "Обновление..." : "Обновить"}
                         </button>
                         <button
                             className="statistics-close-button"
@@ -265,13 +286,15 @@ function ClassroomStatisticsModal(props: ClassroomStatisticsModalProps) {
                 <StatisticsLegend />
 
                 {error && <pre className="error-box">{error}</pre>}
-                {loading && <div className="loading">Загрузка статистики...</div>}
+                {loading && statistics === null && (
+                    <div className="loading">Загрузка статистики...</div>
+                )}
 
-                {!loading && statistics && statistics.devices.length === 0 && (
+                {statistics && statistics.devices.length === 0 && (
                     <div className="muted statistics-empty">В аудитории нет закреплённых устройств.</div>
                 )}
 
-                {!loading && statistics && statistics.devices.length > 0 && (
+                {statistics && statistics.devices.length > 0 && (
                     <div className="statistics-scroll">
                         <div className="statistics-chart">
                             <div className="statistics-time-row">
@@ -303,6 +326,35 @@ function ClassroomStatisticsModal(props: ClassroomStatisticsModalProps) {
             </div>
         </div>
     );
+}
+
+
+function mergeStatisticsGraphs(
+    current: ClassroomStatisticsResponse | null,
+    next: ClassroomStatisticsResponse,
+): ClassroomStatisticsResponse {
+    if (current === null || current.classroom_id !== next.classroom_id) {
+        return next;
+    }
+
+    const nextDevicesById = new Map(
+        next.devices.map((device) => [device.device_id, device]),
+    );
+
+    return {
+        classroom_id: next.classroom_id,
+        start_at: next.start_at,
+        end_at: next.end_at,
+        devices: current.devices.map((device) => {
+            const nextDevice = nextDevicesById.get(device.device_id);
+
+            return {
+                ...device,
+                availability: nextDevice?.availability ?? [],
+                wan: nextDevice?.wan ?? [],
+            };
+        }),
+    };
 }
 
 
