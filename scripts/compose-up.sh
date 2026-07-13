@@ -10,8 +10,12 @@ previous_git_commit_count=""
 previous_compose_build_number="-1"
 
 if [ -f "$BUILD_INFO_FILE" ]; then
-  previous_git_commit_count="$(python3 -c "import json; print(json.load(open('$BUILD_INFO_FILE')).get('git_commit_count', ''))")"
-  previous_compose_build_number="$(python3 -c "import json; print(json.load(open('$BUILD_INFO_FILE')).get('compose_build_number', -1))")"
+  previous_git_commit_count="$(
+    python3 -c "import json; print(json.load(open('$BUILD_INFO_FILE')).get('git_commit_count', ''))"
+  )"
+  previous_compose_build_number="$(
+    python3 -c "import json; print(json.load(open('$BUILD_INFO_FILE')).get('compose_build_number', -1))"
+  )"
 fi
 
 if [ "$previous_git_commit_count" = "$git_commit_count" ]; then
@@ -39,4 +43,19 @@ PY
 
 echo "Build info updated: $version, $built_at"
 
-docker compose -f infra/docker-compose.yml --env-file .env up -d --build --remove-orphans --force-recreate "$@"
+compose_args=(
+  -f infra/docker-compose.yml
+  --env-file .env
+  up
+  -d
+  --build
+  --remove-orphans
+  --force-recreate
+)
+
+# При указании конкретных сервисов не трогаем их зависимости.
+if [ "$#" -gt 0 ]; then
+  compose_args+=(--no-deps)
+fi
+
+docker compose "${compose_args[@]}" "$@"
