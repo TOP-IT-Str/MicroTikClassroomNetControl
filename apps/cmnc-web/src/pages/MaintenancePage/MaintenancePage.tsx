@@ -7,6 +7,7 @@ import {
     uploadMaintenanceDatabaseBackup,
     type MaintenanceContainerStatus,
 } from "../../api";
+import { REFRESH_INTERVALS } from "../../config/refreshIntervals";
 import "./MaintenancePage.css";
 
 type LogsTail = 100 | 1000 | 10000;
@@ -196,6 +197,10 @@ export function MaintenancePage() {
         void loadInitial();
 
         const timerId = window.setInterval(() => {
+            if (document.visibilityState !== "visible") {
+                return;
+            }
+
             getMaintenanceContainers()
                 .then((data) => {
                     if (!cancelled) {
@@ -205,7 +210,7 @@ export function MaintenancePage() {
                 .catch(() => {
                     // Ошибку фонового обновления не показываем поверх текущего состояния.
                 });
-        }, 5000);
+        }, REFRESH_INTERVALS.maintenance);
 
         return () => {
             cancelled = true;

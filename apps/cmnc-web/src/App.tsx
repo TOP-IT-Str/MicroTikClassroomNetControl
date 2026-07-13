@@ -60,6 +60,7 @@ import {
     parseOptionalPositiveInteger,
 } from "./utils/devices";
 import { parseOptionalInteger, parseRequiredString } from "./utils/forms";
+import { REFRESH_INTERVALS } from "./config/refreshIntervals";
 import {
     ClassroomStatisticsButton
 } from "./components/ClassroomStatisticsModal/ClassroomStatisticsModal.tsx";
@@ -215,7 +216,11 @@ export function App() {
     }, [principal]);
 
     useEffect(() => {
-        if (principal === null || selectedClassroomId === null) {
+        if (
+            principal === null ||
+            selectedClassroomId === null ||
+            currentPage !== "dashboard"
+        ) {
             return;
         }
 
@@ -245,6 +250,10 @@ export function App() {
         void loadSelectedDashboard();
 
         const timerId = window.setInterval(() => {
+            if (document.visibilityState !== "visible") {
+                return;
+            }
+
             getClassroomDashboard(selectedClassroomId)
                 .then((data) => {
                     if (!cancelled) {
@@ -254,13 +263,13 @@ export function App() {
                 .catch(() => {
                     // Ошибку polling не показываем поверх экрана.
                 });
-        }, 5000);
+        }, REFRESH_INTERVALS.dashboard);
 
         return () => {
             cancelled = true;
             window.clearInterval(timerId);
         };
-    }, [principal, selectedClassroomId]);
+    }, [principal, selectedClassroomId, currentPage]);
 
     async function reload() {
         if (principal === null || selectedClassroomId === null) {

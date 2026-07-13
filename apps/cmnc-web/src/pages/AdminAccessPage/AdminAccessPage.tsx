@@ -23,6 +23,7 @@ import {
     canManageWorkstations,
     getManageableUserRoles,
 } from "../../auth/permissions";
+import { REFRESH_INTERVALS } from "../../config/refreshIntervals";
 import "./AdminAccessPage.css";
 
 type AdminAccessPageProps = {
@@ -36,7 +37,6 @@ type PresenceAware = {
     online?: boolean;
 };
 
-const PRESENCE_REFRESH_INTERVAL_MS = 30_000;
 
 type UserFormState = {
     mode: "create" | "edit";
@@ -98,7 +98,7 @@ export function AdminAccessPage(props: AdminAccessPageProps) {
             if (document.visibilityState === "visible") {
                 void refreshPresence();
             }
-        }, PRESENCE_REFRESH_INTERVAL_MS);
+        }, REFRESH_INTERVALS.adminPresence);
 
         return () => window.clearInterval(intervalId);
     }, []);

@@ -1,9 +1,10 @@
-import { type MouseEvent, useCallback, useEffect, useMemo, useState } from "react";
+import { type MouseEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
     clearAccessToken,
     extractErrorDetail,
     getAccessToken,
 } from "../../api";
+import { REFRESH_INTERVALS } from "../../config/refreshIntervals";
 import "./ClassroomStatisticsModal.css";
 
 
@@ -77,22 +78,46 @@ function ClassroomStatisticsModal(props: ClassroomStatisticsModalProps) {
     const [statistics, setStatistics] = useState<ClassroomStatisticsResponse | null>(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
+    const requestInFlightRef = useRef(false);
 
-    const loadStatistics = useCallback(async () => {
-        setLoading(true);
-        setError(null);
+    const loadStatistics = useCallback(async (showLoader: boolean) => {
+        if (requestInFlightRef.current) {
+            return;
+        }
+
+        requestInFlightRef.current = true;
+
+        if (showLoader) {
+            setLoading(true);
+            setError(null);
+        }
 
         try {
             setStatistics(await requestStatistics(classroomId));
+            setError(null);
         } catch (err) {
-            setError(extractErrorDetail(err));
+            if (showLoader) {
+                setError(extractErrorDetail(err));
+            }
         } finally {
-            setLoading(false);
+            requestInFlightRef.current = false;
+
+            if (showLoader) {
+                setLoading(false);
+            }
         }
     }, [classroomId]);
 
     useEffect(() => {
-        void loadStatistics();
+        void loadStatistics(true);
+
+        const timerId = window.setInterval(() => {
+            if (document.visibilityState === "visible") {
+                void loadStatistics(false);
+            }
+        }, REFRESH_INTERVALS.statistics);
+
+        return () => window.clearInterval(timerId);
     }, [loadStatistics]);
 
     useEffect(() => {
@@ -143,7 +168,7 @@ function ClassroomStatisticsModal(props: ClassroomStatisticsModalProps) {
                         <button
                             className="secondary-button"
                             disabled={loading}
-                            onClick={() => void loadStatistics()}
+                            onClick={() => void loadStatistics(true)}
                         >
                             Обновить
                         </button>

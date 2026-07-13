@@ -18,6 +18,7 @@ import {
     testAdminRouterConnection,
     updateAdminRouter,
 } from "../../api";
+import { REFRESH_INTERVALS } from "../../config/refreshIntervals";
 import "./RoutersAdminPage.css";
 
 type RouterFormState = {
@@ -133,6 +134,10 @@ export function RoutersAdminPage() {
         void loadInitial();
 
         const timerId = window.setInterval(() => {
+            if (document.visibilityState !== "visible") {
+                return;
+            }
+
             getAdminRoutersStatus()
                 .then((data) => {
                     if (!cancelled) {
@@ -142,7 +147,7 @@ export function RoutersAdminPage() {
                 .catch(() => {
                     // Фоновое обновление не должно перекрывать экран ошибкой.
                 });
-        }, 5000);
+        }, REFRESH_INTERVALS.routers);
 
         return () => {
             cancelled = true;
