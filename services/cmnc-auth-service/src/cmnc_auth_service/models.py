@@ -64,6 +64,11 @@ class User(Base):
         nullable=True,
     )
 
+    last_seen_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True,
+    )
+
     role: Mapped[Role] = relationship()
 
 

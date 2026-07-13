@@ -1,5 +1,5 @@
 from contextlib import asynccontextmanager
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from ipaddress import IPv4Address, IPv6Address
 from typing import Iterable
 
@@ -37,6 +37,10 @@ from cmnc_auth_service.security import (
     verify_password,
 )
 from cmnc_contracts.permissions import get_permissions_for_role
+
+
+PRESENCE_TOUCH_INTERVAL = timedelta(seconds=30)
+ONLINE_THRESHOLD = timedelta(minutes=2)
 
 
 @asynccontextmanager
@@ -85,7 +89,9 @@ async def login(
             detail="Invalid username or password",
         )
 
-    user.last_login_at = datetime.now(timezone.utc)
+    now = datetime.now(timezone.utc)
+    user.last_login_at = now
+    user.last_seen_at = now
     await session.commit()
 
     token = create_access_token(
@@ -112,6 +118,12 @@ async def resolve_principal(
         )
 
         if principal is not None:
+            if payload.client_ip:
+                await touch_workstation_by_ip(
+                    client_ip=payload.client_ip,
+                    session=session,
+                )
+
             return ResolvePrincipalResponse(
                 authenticated=True,
                 principal=principal,
@@ -438,6 +450,8 @@ async def resolve_user_by_token(
     if user is None or not user.is_active:
         return None
 
+    await touch_user_presence(user, session)
+
     classroom_ids = await get_user_classroom_ids(
         user_id=user.id,
         role=user.role,
@@ -468,8 +482,7 @@ async def resolve_workstation_by_ip(
     if workstation is None or not workstation.is_active:
         return None
 
-    workstation.last_seen_at = datetime.now(timezone.utc)
-    await session.commit()
+    await touch_workstation_presence(workstation, session)
 
     classroom_ids = await get_workstation_classroom_ids(
         workstation_id=workstation.id,
@@ -484,6 +497,78 @@ async def resolve_workstation_by_ip(
         classroom_ids=classroom_ids,
         permissions=get_permissions_for_role(workstation.role.name),
     )
+
+
+async def touch_user_presence(
+    user: User,
+    session: AsyncSession,
+) -> None:
+    now = datetime.now(timezone.utc)
+
+    if not should_touch_presence(user.last_seen_at, now):
+        return
+
+    user.last_seen_at = now
+    await session.commit()
+
+
+async def touch_workstation_presence(
+    workstation: Workstation,
+    session: AsyncSession,
+) -> None:
+    now = datetime.now(timezone.utc)
+
+    if not should_touch_presence(workstation.last_seen_at, now):
+        return
+
+    workstation.last_seen_at = now
+    await session.commit()
+
+
+async def touch_workstation_by_ip(
+    client_ip: str,
+    session: AsyncSession,
+) -> None:
+    result = await session.execute(
+        select(Workstation).where(Workstation.ip_address == client_ip)
+    )
+    workstation = result.scalar_one_or_none()
+
+    if workstation is None or not workstation.is_active:
+        return
+
+    await touch_workstation_presence(workstation, session)
+
+
+def should_touch_presence(
+    last_seen_at: datetime | None,
+    now: datetime,
+) -> bool:
+    normalized_last_seen_at = normalize_datetime(last_seen_at)
+
+    if normalized_last_seen_at is None:
+        return True
+
+    return now - normalized_last_seen_at >= PRESENCE_TOUCH_INTERVAL
+
+
+def is_online(last_seen_at: datetime | None) -> bool:
+    normalized_last_seen_at = normalize_datetime(last_seen_at)
+
+    if normalized_last_seen_at is None:
+        return False
+
+    return datetime.now(timezone.utc) - normalized_last_seen_at <= ONLINE_THRESHOLD
+
+
+def normalize_datetime(value: datetime | None) -> datetime | None:
+    if value is None:
+        return None
+
+    if value.tzinfo is None:
+        return value.replace(tzinfo=timezone.utc)
+
+    return value
 
 
 async def get_user_classroom_ids(
@@ -619,10 +704,12 @@ async def build_user_response(
         display_name=user.display_name,
         role=user.role.name,
         is_active=user.is_active,
+        online=user.is_active and is_online(user.last_seen_at),
         classroom_ids=classroom_ids,
         created_at=user.created_at,
         updated_at=user.updated_at,
         last_login_at=user.last_login_at,
+        last_seen_at=user.last_seen_at,
     )
 
 
@@ -641,6 +728,7 @@ async def build_workstation_response(
         ip_address=workstation.ip_address,
         role=workstation.role.name,
         is_active=workstation.is_active,
+        online=workstation.is_active and is_online(workstation.last_seen_at),
         classroom_ids=classroom_ids,
         created_at=workstation.created_at,
         updated_at=workstation.updated_at,

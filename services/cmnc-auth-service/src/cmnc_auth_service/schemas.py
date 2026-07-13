@@ -54,10 +54,12 @@ class UserResponse(BaseModel):
     display_name: str
     role: str
     is_active: bool
+    online: bool
     classroom_ids: list[int]
     created_at: datetime
     updated_at: datetime
     last_login_at: datetime | None = None
+    last_seen_at: datetime | None = None
 
 
 class UserCreateRequest(BaseModel):
@@ -87,6 +89,7 @@ class WorkstationResponse(BaseModel):
     ip_address: IPv4Address | IPv6Address
     role: str
     is_active: bool
+    online: bool
     classroom_ids: list[int]
     created_at: datetime
     updated_at: datetime

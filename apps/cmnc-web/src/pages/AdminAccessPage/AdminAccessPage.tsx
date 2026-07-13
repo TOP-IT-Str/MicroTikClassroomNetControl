@@ -32,6 +32,12 @@ type AdminAccessPageProps = {
 
 type PageTab = "users" | "workstations";
 
+type PresenceAware = {
+    online?: boolean;
+};
+
+const PRESENCE_REFRESH_INTERVAL_MS = 30_000;
+
 type UserFormState = {
     mode: "create" | "edit";
     user: AdminUser | null;
@@ -87,6 +93,14 @@ export function AdminAccessPage(props: AdminAccessPageProps) {
 
     useEffect(() => {
         void reload();
+
+        const intervalId = window.setInterval(() => {
+            if (document.visibilityState === "visible") {
+                void refreshPresence();
+            }
+        }, PRESENCE_REFRESH_INTERVAL_MS);
+
+        return () => window.clearInterval(intervalId);
     }, []);
 
     async function reload() {
@@ -109,6 +123,22 @@ export function AdminAccessPage(props: AdminAccessPageProps) {
             setError(extractErrorDetail(err));
         } finally {
             setLoading(false);
+        }
+    }
+
+    async function refreshPresence() {
+        try {
+            const [loadedUsers, loadedWorkstations] = await Promise.all([
+                userManagementAllowed ? getAdminUsers() : Promise.resolve([]),
+                workstationManagementAllowed
+                    ? getAdminWorkstations()
+                    : Promise.resolve([]),
+            ]);
+
+            setUsers(loadedUsers);
+            setWorkstations(loadedWorkstations);
+        } catch {
+            // Оставляем последнее успешно загруженное состояние.
         }
     }
 
@@ -648,7 +678,6 @@ function UsersTable(props: UsersTableProps) {
                     <th>Username</th>
                     <th>Имя</th>
                     <th>Роль</th>
-                    <th>Активен</th>
                     <th>Аудитории</th>
                     <th>Last login</th>
                     <th>Действие</th>
@@ -656,12 +685,16 @@ function UsersTable(props: UsersTableProps) {
                 </thead>
                 <tbody>
                 {users.map((user) => (
-                    <tr key={user.id}
-                        className={user.is_active ? "user-item__active" : "user-item__disabled"}>
+                    <tr
+                        key={user.id}
+                        className={getPresenceRowClass(
+                            user.is_active,
+                            (user as AdminUser & PresenceAware).online,
+                        )}
+                    >
                         <td>{user.username}</td>
                         <td>{user.display_name}</td>
                         <td>{formatRole(user.role)}</td>
-                        <td>{user.is_active ? "да" : "нет"}</td>
                         <td>{formatUserClassroomIds(user)}</td>
                         <td>{formatDate(user.last_login_at)}</td>
                         <td>
@@ -699,7 +732,6 @@ function WorkstationsTable(props: WorkstationsTableProps) {
                 <tr>
                     <th>Название</th>
                     <th>IP</th>
-                    <th>Активна</th>
                     <th>Аудитории</th>
                     <th>Last seen</th>
                     <th>Действие</th>
@@ -707,11 +739,15 @@ function WorkstationsTable(props: WorkstationsTableProps) {
                 </thead>
                 <tbody>
                 {workstations.map((workstation) => (
-                    <tr key={workstation.id}
-                        className={workstation.is_active ? "user-item__active" : "user-item__disabled"}>
+                    <tr
+                        key={workstation.id}
+                        className={getPresenceRowClass(
+                            workstation.is_active,
+                            (workstation as AdminWorkstation & PresenceAware).online,
+                        )}
+                    >
                         <td>{workstation.name}</td>
                         <td>{workstation.ip_address}</td>
-                        <td>{workstation.is_active ? "да" : "нет"}</td>
                         <td>{formatClassroomIds(workstation.classroom_ids)}</td>
                         <td>{formatDate(workstation.last_seen_at)}</td>
                         <td>
@@ -728,6 +764,17 @@ function WorkstationsTable(props: WorkstationsTableProps) {
             </table>
         </div>
     );
+}
+
+function getPresenceRowClass(
+    isEnabled: boolean,
+    online: boolean | undefined,
+): string | undefined {
+    if (!isEnabled) {
+        return "user-item__disabled";
+    }
+
+    return online === true ? "user-item__online" : undefined;
 }
 
 function formatUserClassroomIds(user: AdminUser): string {

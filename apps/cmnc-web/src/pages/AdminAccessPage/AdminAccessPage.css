@@ -132,6 +132,10 @@
     min-width: 820px;
 }
 
+.admin-table-wrapper table tr.user-item__online {
+    background: #16a34a24;
+}
+
 .admin-table-wrapper table tr.user-item__disabled {
     background: #ffffff30;
 }
